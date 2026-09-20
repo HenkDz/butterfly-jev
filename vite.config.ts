@@ -1,2 +1,2 @@
-import { defineConfig } from 'vite'; import react from '@vitejs/plugin-react';
-export default defineConfig({plugins:[react()],server:{proxy:{'/api':'http://localhost:8787'}}});
+import { defineConfig } from 'vite';
+export default defineConfig({ server: { host: '127.0.0.1', port: 5173 } });

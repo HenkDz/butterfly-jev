@@ -1,10 +1,8 @@
 node_modules
-dist
+.git
 .env
 .env.*
-!.env.example
-.DS_Store
 .netlify
 .test-build
 .preview
-*.tsbuildinfo
+dist
