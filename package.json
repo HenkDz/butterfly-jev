@@ -1,1 +1,33 @@
-{"name":"butterfly-jev","private":true,"version":"0.1.0","type":"module","scripts":{"dev":"concurrently \"vite\" \"tsx watch server/index.ts\"","build":"tsc -b && vite build","server":"tsx server/index.ts","test":"vitest run"},"dependencies":{"@vitejs/plugin-react":"latest","concurrently":"latest","cors":"latest","dotenv":"latest","express":"latest","react":"latest","react-dom":"latest","vite":"latest"},"devDependencies":{"@types/cors":"latest","@types/express":"latest","@types/node":"latest","@types/react":"latest","@types/react-dom":"latest","tsx":"latest","typescript":"latest","vitest":"latest"}}
+{
+  "name": "butterfly-jev",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "tsc -b && vite build",
+    "server": "tsx server/index.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "concurrently": "latest",
+    "cors": "latest",
+    "dotenv": "latest",
+    "express": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "vite": "latest",
+    "@netlify/functions": "latest"
+  },
+  "devDependencies": {
+    "@types/cors": "latest",
+    "@types/express": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "tsx": "latest",
+    "typescript": "latest",
+    "vitest": "latest"
+  }
+}
