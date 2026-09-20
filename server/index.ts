@@ -1,9 +1,16 @@
-import 'dotenv/config';import express from'express';import cors from'cors';
-const app=express();app.use(cors());app.use(express.json({limit:'24kb'}));app.use(express.static('dist'));
-const allowed=new Set(['inspect_bridge','warn_neighbor','reroute','continue_work','wait']);
-const labels:Record<string,string>={inspect_bridge:'Go to the north bridge and inspect whether it is open',warn_neighbor:'Warn a nearby resident that the north bridge may close',reroute:'Change route now to avoid the north bridge',continue_work:'Continue the current task and do not act on the rumor',wait:'Wait for more information before acting'};
-app.post('/api/decide',async(req,res)=>{const key=process.env.TYPESAFE_API_KEY;if(!key)return res.status(503).send('Live Jev is not configured. Set TYPESAFE_API_KEY server-side.');const{agent,allowedActions}=req.body??{};if(!agent||!Array.isArray(allowedActions)||allowedActions.some((x:string)=>!allowed.has(x)))return res.status(400).send('Invalid decision request.');
-try{const state=`Role: ${agent.role}\nPrivate memories: ${JSON.stringify(agent.memory)}\nCurrent beliefs: ${JSON.stringify(agent.beliefs)}`;const criteria=Object.fromEntries(allowedActions.map((x:string)=>[x,labels[x]]));const r=await fetch('https://api.typesafe.ai/v1/systemone',{method:'POST',headers:{authorization:`Bearer ${key}`,'content-type':'application/json'},body:JSON.stringify({state,model:'jev-latest',questions:{next_action:{type:'choice',instructions:'Given only this character state, what should this character do next?',criteria}}})});if(!r.ok)return res.status(502).send(`Jev upstream error ${r.status}`);const raw:any=await r.json();const answer=raw?.answers?.next_action;const action=answer?.choice;if(!allowed.has(action))return res.status(502).send('Jev returned an unrecognized action.');res.json({action,confidence:answer.confidence,distribution:answer.probabilities,source:'jev'});}catch{return res.status(502).send('Jev request failed.')}});
-app.get('/api/health',(_,res)=>res.json({ok:true,jevConfigured:Boolean(process.env.TYPESAFE_API_KEY)}));
-app.use((req,res,next)=>req.path.startsWith('/api/')?next():res.sendFile('index.html',{root:'dist'}));
-app.listen(Number(process.env.PORT||8787),()=>console.log('Butterfly API on :'+(process.env.PORT||8787)));
+import 'dotenv/config';
+import express from 'express';
+import { handleDecision } from './decision.js';
+import { VERSION } from '../src/sim/model.js';
+const app = express();
+app.use(express.text({ type: 'application/json', limit: '16kb' }));
+app.post('/api/decide', async (req, res) => {
+  const request = new Request(`http://${req.get('host')}/api/decide`, { method: 'POST', headers: { 'content-type': req.get('content-type') || '' }, body: typeof req.body === 'string' ? req.body : '' });
+  const result = await handleDecision(request, { key: process.env.TYPESAFE_API_KEY, model: process.env.TYPESAFE_MODEL, enabled: process.env.JEV_LIVE_ENABLED !== 'false' });
+  res.status(result.status).type(result.headers.get('content-type') || 'text/plain').send(await result.text());
+});
+app.get('/api/health', (_, res) => res.json({ ok: true, version: VERSION, jevConfigured: Boolean(process.env.TYPESAFE_API_KEY) && process.env.JEV_LIVE_ENABLED !== 'false' }));
+app.use('/api', (_, res) => res.status(404).send('Unknown API endpoint.'));
+app.use(express.static('dist'));
+app.use((_req, res) => res.sendFile('index.html', { root: 'dist' }));
+app.listen(Number(process.env.PORT || 8787), () => console.log(`Butterfly on :${process.env.PORT || 8787}`));

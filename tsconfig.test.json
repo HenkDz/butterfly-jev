@@ -1,0 +1,1 @@
+{"compilerOptions":{"target":"ES2022","lib":["ES2022","DOM"],"strict":true,"skipLibCheck":true,"module":"ES2022","moduleResolution":"Bundler","outDir":".test-build","rootDir":"."},"include":["src/sim/model.ts","server/decision.ts"]}
