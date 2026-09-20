@@ -17,3 +17,60 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: npm test
       - run: npm run build
+  published-smoke:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check deployed assets, health and one authenticated Jev decision
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const base = 'https://butterflyjev.netlify.app';
+          const get = (path, options = {}) => fetch(base + path, { ...options, signal: AbortSignal.timeout(20000) });
+          let health;
+          for (let attempt = 0; attempt < 36; attempt++) {
+            try {
+              const r = await get('/api/health');
+              if (r.ok) { const h = await r.json(); if (h.version === '2.0.0') { health = h; break; } }
+            } catch {}
+            console.log('Waiting for the v2 deployment...');
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
+          assert.ok(health?.ok, 'The v2 production health endpoint did not become available.');
+          console.log('Production health:', JSON.stringify(health));
+          const page = await get('/');
+          assert.equal(page.status, 200);
+          const html = await page.text();
+          assert.match(html, /One memory\. A different world\./);
+          const assets = [...new Set([...html.matchAll(/(?:src|href)="(\/assets\/[^\"]+)"/g)].map(m => m[1]))];
+          assert.ok(assets.length >= 2, 'Expected built JavaScript and CSS assets.');
+          for (const path of assets) { const r = await get(path); assert.equal(r.status, 200); assert.ok((await r.text()).length > 100); }
+          console.log('Production HTML and assets passed:', assets.length);
+          if (!health.jevConfigured) {
+            console.log('::warning::Live Jev is not configured on this project. Rules mode is available; a real Jev check was not performed.');
+          } else {
+            const input = {
+              person: { name: 'Mina', role: 'Courier' },
+              memories: ['trust: The tipster gave me accurate route information last time.', 'rumor: The tipster says North Bridge is closed for repairs.'],
+              situation: 'It is 08:00. I am on the west bank. My current task is a delivery on the east bank.',
+              nearby: ['Omar, Baker'],
+              allowedActions: ['continue_work', 'wait', 'inspect_bridge', 'share_warning', 'take_detour'],
+            };
+            const r = await get('/api/decide', { method: 'POST', headers: { 'content-type': 'application/json', origin: base }, body: JSON.stringify(input) });
+            const body = await r.text();
+            assert.equal(r.status, 200, `Real Jev smoke request failed: ${body}`);
+            const decision = JSON.parse(body);
+            assert.equal(decision.source, 'jev');
+            assert.ok(input.allowedActions.includes(decision.action));
+            const p = Object.values(decision.probabilities);
+            assert.ok(p.every(n => Number.isFinite(n) && n >= 0 && n <= 1));
+            assert.ok(Math.abs(p.reduce((a, b) => a + b, 0) - 1) < .025);
+            console.log('Real Jev round trip passed:', JSON.stringify({ action: decision.action, model: decision.model, confidence: decision.confidence }));
+          }
+          NODE
